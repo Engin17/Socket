@@ -18,11 +18,16 @@ namespace Client
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class ClientWindow : Window
     {
-        public MainWindow()
+        public ClientWindow()
         {
             InitializeComponent();
+        }
+
+        private void Button_ConnectClient(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 }

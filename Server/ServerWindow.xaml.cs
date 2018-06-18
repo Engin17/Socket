@@ -18,11 +18,25 @@ namespace Server
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class ServerWindow : Window
     {
-        public MainWindow()
+        public ServerWindow()
         {
             InitializeComponent();
+
+            this.DataContext = new AsynchronousServer();
         }
+
+        private void Button_RestartServer(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void Button_RequestLogs(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+
     }
 }
