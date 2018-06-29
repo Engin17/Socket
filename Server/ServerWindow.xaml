@@ -10,8 +10,6 @@
 
     <Window.Resources>
 
-        <local:AsynchronousServer x:Key="asychronousServer" />
-
         <Style TargetType="Label">
             <Setter Property="Foreground" Value="WhiteSmoke" />
             <Setter Property="FontFamily" Value="Calibri Light" />
@@ -67,7 +65,7 @@
             <ColumnDefinition Width="100" />
         </Grid.ColumnDefinitions>
 
-        <Label Content="Log Server" Height="70" FontSize="50" Grid.Column="1" Grid.ColumnSpan="3" Grid.Row="1" />
+        <Label Content="Socket" Height="70" FontSize="50" Grid.Column="1" Grid.ColumnSpan="3" Grid.Row="1" />
 
         <Label Content="Server IP:" Grid.Column="1" Grid.ColumnSpan="1" Grid.Row="3" />
         <TextBlock Text="{Binding ServerIP}" Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="3" VerticalAlignment="Center"/>
@@ -78,7 +76,7 @@
         <Label Content="Server Status:" Grid.Column="7" Grid.ColumnSpan="1" Grid.Row="3"/>
         <TextBlock Text="{Binding ServerStatus}" Grid.Column="8" Grid.ColumnSpan="2" Grid.Row="3" VerticalAlignment="Center" Foreground="{Binding ServerStatusForeground}"/>
 
-        <!--<Button Content="Restart Server" Height="40" Grid.Column="8" Grid.Row="1" Grid.ColumnSpan="2" FontSize="15" Click="Button_RestartServer"/>-->
+        <Button Content="Restart Server" Height="40" Grid.Column="8" Grid.Row="1" Grid.ColumnSpan="2" FontSize="15" Click="Button_RestartServer"/>
 
         <Label Content="Connected Clients:" Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="7"/>
         <Border Grid.Column="1" Grid.ColumnSpan="4" Grid.Row="8" BorderBrush="Black" BorderThickness="1">
@@ -94,5 +92,6 @@
                 <TextBlock Name="tbOutput" Background="White" Height="Auto" Foreground="Black" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
             </Border>
         </ScrollViewer>
+
     </Grid>
 </Window>
