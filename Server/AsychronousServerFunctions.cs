@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
@@ -22,6 +23,7 @@ namespace Server
         private delegate void ProgressBarIndeterminateSetHandler(bool mode);
         private delegate void SetStatusLogHandler(string log);
         private delegate void FileReceiveDoneHandler();
+        private delegate void RemoveItemHandler(string ipAddress);
 
         private Socket _clientSocket;
         private string _fileSavePath;
@@ -33,7 +35,6 @@ namespace Server
             _clientSocket = clientSocket;
             _clientName = ServerFunctions.GetHostNameOfClient(_clientSocket);
             _fileSavePath = Environment.ExpandEnvironmentVariables(@"%USERPROFILE%\AppData\Local\SeeTec\Templogs\");
-            _countBytes = 0;
         }
 
         /// <summary>
@@ -188,6 +189,11 @@ namespace Server
 
                 // Notify the user whether receive the file completely.
                 AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new FileReceiveDoneHandler(AsynchronousServer.ServerWindow.FileReceiveDone));
+
+                IPEndPoint ipEndPoint = _clientSocket.RemoteEndPoint as IPEndPoint;
+                string address = ipEndPoint.Address.ToString();
+                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new RemoveItemHandler(AsynchronousServer.ServerWindow.RemoveItem), address);
+
             }
             catch (Exception ex)
             {

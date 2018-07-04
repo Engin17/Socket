@@ -35,6 +35,8 @@ namespace Client
             ClientFunctions.ClientStartPreparation();
 
             client = new AsynchronousClient();
+
+            this.StartConnectingToServer();
         }
 
         private void StartConnectingToServer()
@@ -46,11 +48,6 @@ namespace Client
             threadClient.Start();
 
             //AsynchronousClient.Connected = true;
-        }
-
-        private void Button_ConnectClient(object sender, RoutedEventArgs e)
-        {
-            this.StartConnectingToServer();
         }
     }
 }

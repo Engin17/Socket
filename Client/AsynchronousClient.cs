@@ -28,7 +28,6 @@ namespace Client
 
         private static ManualResetEvent connectDone = new ManualResetEvent(false);
         private static ManualResetEvent sendDone = new ManualResetEvent(false);
-        public static ManualResetEvent receiveDone = new ManualResetEvent(false);
         #endregion
 
         #endregion // Static members
@@ -80,13 +79,8 @@ namespace Client
                 // Wait until the connection is done
                 connectDone.WaitOne();
 
-                while (true)
-                {
-                    receiveDone.Reset();
-                    // Begin to wait for logs request signal from the server.
-                    this.WaitForSignal();
-                    receiveDone.WaitOne();
-                }
+                // Begin to wait for logs request signal from the server.
+                this.WaitForSignal();
             }
             catch (Exception ex)
             {
@@ -130,9 +124,6 @@ namespace Client
                 // Wait for log request
                 _clientSocket.Receive(bytes);
 
-                // Signal client that log is requested from the server.
-                receiveDone.Set();
-
                 // Start new thread to copy and zip the logs
                 Thread t = new Thread(() => this.CreateLogs())
                 {
@@ -175,6 +166,9 @@ namespace Client
 
             // Delete the temporary logs folder
             ClientFunctions.DeleteLogFolderAfterSent();
+
+            Thread.Sleep(5000);
+            this.StartConnectToServer();
         }
 
         private void Send()
@@ -262,6 +256,7 @@ namespace Client
 
                     _clientSocket.Shutdown(SocketShutdown.Both);
                     _clientSocket.Close();
+                    connectDone.Reset();
                 }
             }
             catch (Exception ex)

@@ -8,6 +8,6 @@
         Title="ClientWindow" Height="350" Width="525">
     <StackPanel>
         <TextBlock />
-        <Button Height="50" Width="200" Content="Connect to server" Click="Button_ConnectClient" />
+        
     </StackPanel>
 </Window>

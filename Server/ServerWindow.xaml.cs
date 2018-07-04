@@ -69,6 +69,38 @@ namespace Server
             btnRequestLogs.IsEnabled = true;
         }
 
+        /// <summary>
+        /// Remove the client address which disconnect from the server.
+        /// </summary>
+        public void RemoveItem(string ipAddress)
+        {
+            int[] indexes = new int[lbxServer.SelectedItems.Count];
+            int index = 0;
+            int currentIndex = 0;
+
+            foreach (object item in lbxServer.SelectedItems)
+            {
+
+                int end = item.ToString().IndexOf(' ');
+
+                if (string.Equals(item.ToString().Substring(0, end), ipAddress, StringComparison.OrdinalIgnoreCase))
+                {
+                    index = lbxServer.Items.IndexOf(item);
+                    indexes[currentIndex] = index;
+
+                    currentIndex++;
+                }           
+            }
+
+            foreach (int i in indexes)
+            {
+                lbxServer.Items.RemoveAt(i);
+            }
+
+            lbxServer.InvalidateArrange();
+            lbxServer.UpdateLayout();
+        }
+
         public void UpdateLogStatus(string log)
         {
             sb.Append(log);
@@ -169,6 +201,12 @@ namespace Server
                         logsRequester.Start();
                     }
                 }
+
+                foreach (Socket item in server.SelectedClientsForCollectingLogs)
+                {
+                    server.ConnectedClients.Remove(item);
+                }
+
                 // Delete selected client for collecting logs list after the logs for these clients have been successfully received
                 server.SelectedClientsForCollectingLogs.Clear();
             }
