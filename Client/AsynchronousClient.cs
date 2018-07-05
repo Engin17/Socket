@@ -26,8 +26,8 @@ namespace Client
         #region Static field members
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-        private static ManualResetEvent connectDone = new ManualResetEvent(false);
-        private static ManualResetEvent sendDone = new ManualResetEvent(false);
+        private static AutoResetEvent connectDone = new AutoResetEvent(false);
+        private static AutoResetEvent sendDone = new AutoResetEvent(false);
         #endregion
 
         #endregion // Static members
@@ -105,6 +105,7 @@ namespace Client
                 connectDone.Set();
 
                 log.Info("Client successfully connected to the server.");
+                log.Info("");
             }
             catch (Exception ex)
             {
@@ -163,11 +164,11 @@ namespace Client
             sendDone.WaitOne();
 
             log.Info("Logs have been successfully sent to the server.");
+            log.Info("");
 
             // Delete the temporary logs folder
             ClientFunctions.DeleteLogFolderAfterSent();
 
-            Thread.Sleep(5000);
             this.StartConnectToServer();
         }
 
@@ -256,7 +257,6 @@ namespace Client
 
                     _clientSocket.Shutdown(SocketShutdown.Both);
                     _clientSocket.Close();
-                    connectDone.Reset();
                 }
             }
             catch (Exception ex)

@@ -89,7 +89,7 @@ namespace Server
                     indexes[currentIndex] = index;
 
                     currentIndex++;
-                }           
+                }
             }
 
             foreach (int i in indexes)
@@ -187,19 +187,32 @@ namespace Server
                         }
                     }
 
-                    AsychronousServerFunctions serverFunctions;
-
-                    // Iterate through selected list and request logs for the clients
-                    foreach (Socket handler in server.SelectedClientsForCollectingLogs)
+                    Thread logsRequester = new Thread(() => this.RequestLogsOneByOne())
                     {
-                        serverFunctions = new AsychronousServerFunctions(handler);
+                        IsBackground = true
+                    };
+                    logsRequester.Start();
 
-                        Thread logsRequester = new Thread(() => serverFunctions.SendLogsRequest())
-                        {
-                            IsBackground = true
-                        };
-                        logsRequester.Start();
-                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex.Message, ex);
+            }
+        }
+
+        private void RequestLogsOneByOne()
+        {
+            lock (this)
+            {
+                AsychronousServerFunctions serverFunctions;
+
+                // Iterate through selected list and request logs for the clients
+                foreach (Socket handler in server.SelectedClientsForCollectingLogs)
+                {
+                    serverFunctions = new AsychronousServerFunctions(handler);
+
+                    serverFunctions.SendLogsRequest();
                 }
 
                 foreach (Socket item in server.SelectedClientsForCollectingLogs)
@@ -210,12 +223,7 @@ namespace Server
                 // Delete selected client for collecting logs list after the logs for these clients have been successfully received
                 server.SelectedClientsForCollectingLogs.Clear();
             }
-            catch (Exception ex)
-            {
-                log.Error(ex.Message, ex);
-            }
         }
-
 
         private void Button_RestartServer(object sender, RoutedEventArgs e)
         {

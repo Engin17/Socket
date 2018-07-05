@@ -23,7 +23,7 @@ namespace Server
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         // Thread signal
-        private static ManualResetEvent connectDone = new ManualResetEvent(false);
+        private static AutoResetEvent connectDone = new AutoResetEvent(false);
 
         #endregion
 
@@ -136,10 +136,7 @@ namespace Server
 
                 // Loop listening the client.
                 while (true)
-                {
-                    // Set the event to nonsignaled state.  
-                    connectDone.Reset();
-
+                {                  
                     // Start an asynchronous socket to listen for connections. 
                     listener.BeginAccept(new AsyncCallback(this.AcceptCallback), listener);
 
