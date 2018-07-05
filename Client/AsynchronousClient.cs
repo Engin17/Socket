@@ -141,18 +141,15 @@ namespace Client
         }
 
         // Copy and zip logs
-        private async void CreateLogs()
+        private void CreateLogs()
         {
-            await Task.Run(() =>
-            {
-                ClientFunctions.CreateClientServerLogFolder();
+            ClientFunctions.CreateClientServerLogFolder();
 
-                ClientFunctions.CopyLogs(ClientFunctions.ClientLogsPath, ClientFunctions.ClientLogsTempPath, true);
-                ClientFunctions.CopyLogs(ClientFunctions.ClientConfPath, ClientFunctions.ClientConfTempPath, true);
-                ClientFunctions.CopyLogs(ClientFunctions.ServerLogsPath, ClientFunctions.ServerLogsTempPath, true);
+            ClientFunctions.CopyLogs(ClientFunctions.ClientLogsPath, ClientFunctions.ClientLogsTempPath, true);
+            ClientFunctions.CopyLogs(ClientFunctions.ClientConfPath, ClientFunctions.ClientConfTempPath, true);
+            ClientFunctions.CopyLogs(ClientFunctions.ServerLogsPath, ClientFunctions.ServerLogsTempPath, true);
 
-                ClientFunctions.ZipLogs(ClientFunctions.LogsTempPath, ClientFunctions.LogsTempPathZip);
-            });
+            ClientFunctions.ZipLogs(ClientFunctions.LogsTempPath, ClientFunctions.LogsTempPathZip);
 
             log.Info("Logs successfully created.");
 

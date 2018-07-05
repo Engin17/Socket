@@ -18,6 +18,8 @@ namespace Server
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static StringBuilder sb = new StringBuilder();
 
+        private static int flag = 0;
+
         AsynchronousServer server;
 
         public ServerWindow()
@@ -187,12 +189,14 @@ namespace Server
                         }
                     }
 
-                    Thread logsRequester = new Thread(() => this.RequestLogsOneByOne())
+                    foreach (Socket handler in server.SelectedClientsForCollectingLogs)
                     {
-                        IsBackground = true
-                    };
-                    logsRequester.Start();
-
+                        Thread logsRequester = new Thread(() => this.RequestLogsOneByOne(handler))
+                        {
+                            IsBackground = true
+                        };
+                        logsRequester.Start();
+                    }
                 }
             }
             catch (Exception ex)
@@ -201,27 +205,30 @@ namespace Server
             }
         }
 
-        private void RequestLogsOneByOne()
+        private void RequestLogsOneByOne(Socket handler)
         {
             lock (this)
             {
+                flag++;
+
                 AsychronousServerFunctions serverFunctions;
 
-                // Iterate through selected list and request logs for the clients
-                foreach (Socket handler in server.SelectedClientsForCollectingLogs)
+                serverFunctions = new AsychronousServerFunctions(handler);
+
+                serverFunctions.SendLogsRequest();
+
+                if (flag == server.SelectedClientsForCollectingLogs.Count)
                 {
-                    serverFunctions = new AsychronousServerFunctions(handler);
+                    foreach (Socket item in server.SelectedClientsForCollectingLogs)
+                    {
+                        server.ConnectedClients.Remove(item);
+                    }
 
-                    serverFunctions.SendLogsRequest();
+                    // Delete selected client for collecting logs list after the logs for these clients have been successfully received
+                    server.SelectedClientsForCollectingLogs.Clear();
+
+                    flag = 0;
                 }
-
-                foreach (Socket item in server.SelectedClientsForCollectingLogs)
-                {
-                    server.ConnectedClients.Remove(item);
-                }
-
-                // Delete selected client for collecting logs list after the logs for these clients have been successfully received
-                server.SelectedClientsForCollectingLogs.Clear();
             }
         }
 

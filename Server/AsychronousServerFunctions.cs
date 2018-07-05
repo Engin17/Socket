@@ -16,7 +16,7 @@ namespace Server
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-        private static ManualResetEvent receiveDone = new ManualResetEvent(false);
+        private static AutoResetEvent receiveDone = new AutoResetEvent(false);
 
         private delegate void ProgressChangeHandler(int bytesRead);
         private delegate void SetProgressLengthHandler(long len);
