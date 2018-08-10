@@ -25,13 +25,12 @@ namespace Server
         public static IPAddress ServerIP { get; set; }
         public static int ServerPort { get; set; }
 
-        public static string LogTextInfo { get; } = "INFO: ";
-        public static string LogTextError { get; } = "ERROR: ";
-        public static string LogTextWarning { get; } = "WARNING: ";
-        public static string LogText { get; } = "Log Server is ready to request logs! \n";
+        public static string LogTextInfo => "INFO: ";
+        public static string LogTextError => "ERROR: ";
+        public static string LogTextWarning => "WARNING: ";
+        public static string LogText => "Log Server is ready to request logs! \n";
 
-        public static string ProgressTextLogsRequested { get; } = "Loading Files. Please Wait...";
-
+        public static string ProgressTextLogsRequested => "Loading Files. Please Wait...";
 
         /// <summary>
         /// Method for server preparation.
@@ -43,15 +42,15 @@ namespace Server
             log.Info("********************************************************************************");
 
             log.Info("System informations:");
-
+            
             // Determine Windows version
-            OSVersionInfo.GetOSVersionInfo();
+            EnvironmentInfo.GetOSVersionInfo();
 
             // Determine used .NET runtime version
-            ServerFunctions.GetRunningNETRuntimeVersion();
+            EnvironmentInfo.GetRunningNETRuntimeVersion();
 
             // Determine installed .NET Framework versions
-            ServerFunctions.GetInstalledNETVersionFromRegistry();
+            EnvironmentInfo.GetInstalledNETVersionFromRegistry();
 
             try
             {
@@ -203,83 +202,6 @@ namespace Server
 
                 return null;
             }
-        }
-
-        public static void GetRunningNETRuntimeVersion()
-        {
-            log.Info("");
-            log.Info(".NET Runtime Version: " + Environment.Version.ToString());
-        }
-
-        public static void GetInstalledNETVersionFromRegistry()
-        {
-            log.Info("Detect installed.NET framework versions:");
-
-            try
-            {
-                // Opens the registry key for the .NET Framework entry.
-                using (RegistryKey ndpKey =
-                    RegistryKey.OpenRemoteBaseKey(RegistryHive.LocalMachine, "").
-                    OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\"))
-                {
-                    // As an alternative, if you know the computers you will query are running .NET Framework 4.5 
-                    // or later, you can use:
-                    // using (RegistryKey ndpKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, 
-                    // RegistryView.Registry32).OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\"))
-                    foreach (string versionKeyName in ndpKey.GetSubKeyNames())
-                    {
-                        if (versionKeyName.StartsWith("v"))
-                        {
-
-                            RegistryKey versionKey = ndpKey.OpenSubKey(versionKeyName);
-                            string name = (string)versionKey.GetValue("Version", "");
-                            string sp = versionKey.GetValue("SP", "").ToString();
-                            string install = versionKey.GetValue("Install", "").ToString();
-                            if (install == "") //no install info, must be later.
-                                log.Info(versionKeyName + "  " + name);
-                            else
-                            {
-                                if (sp != "" && install == "1")
-                                {
-                                    log.Info(versionKeyName + "  " + name + "  SP" + sp);
-                                }
-
-                            }
-                            if (name != "")
-                            {
-                                continue;
-                            }
-                            foreach (string subKeyName in versionKey.GetSubKeyNames())
-                            {
-                                RegistryKey subKey = versionKey.OpenSubKey(subKeyName);
-                                name = (string)subKey.GetValue("Version", "");
-                                if (name != "")
-                                    sp = subKey.GetValue("SP", "").ToString();
-                                install = subKey.GetValue("Install", "").ToString();
-                                if (install == "") //no install info, must be later.
-                                    log.Info(versionKeyName + "  " + name);
-                                else
-                                {
-                                    if (sp != "" && install == "1")
-                                    {
-                                        log.Info("  " + subKeyName + "  " + name + "  SP" + sp);
-                                    }
-                                    else if (install == "1")
-                                    {
-                                        log.Info("  " + subKeyName + "  " + name);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                log.Error(ex.Message, ex);
-            }
-
-            log.Info("");
         }
 
         /// <summary>

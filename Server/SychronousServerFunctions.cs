@@ -12,25 +12,39 @@ using System.Threading.Tasks;
 
 namespace Server
 {
-    public class AsychronousServerFunctions
+    public class SychronousServerFunctions
     {
+        #region Static members
+
+        #region Constant members
+        // Buffer size for the byte array
+        private const int BUFFER_SIZE = 5242880;
+        #endregion
+
+        #region Static field members
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private static AutoResetEvent receiveDone = new AutoResetEvent(false);
+        #endregion
 
+        #endregion // Static members
+
+        #region Delegate members
         private delegate void ProgressChangeHandler(int bytesRead);
         private delegate void SetProgressLengthHandler(long len);
         private delegate void ProgressBarIndeterminateSetHandler(bool mode);
         private delegate void SetStatusLogHandler(string log);
         private delegate void FileReceiveDoneHandler();
-        private delegate void RemoveItemHandler(string ipAddress);
+        #endregion
 
+        #region Field members
         private Socket _clientSocket;
         private string _fileSavePath;
         private long _fileLength;
         private string _clientName;
+        #endregion
 
-        public AsychronousServerFunctions(Socket clientSocket)
+        public SychronousServerFunctions(Socket clientSocket)
         {
             _clientSocket = clientSocket;
             _clientName = ServerFunctions.GetHostNameOfClient(_clientSocket);
@@ -42,9 +56,9 @@ namespace Server
         /// </summary>
         private void Receive()
         {
-            // Create the state object.
-            StateObject state = new StateObject();
-            state.workSocket = _clientSocket;
+            byte[] buffer = new byte[BUFFER_SIZE];
+            BinaryWriter writer = null;
+            long bytesLeftToReceive = _fileLength;
 
             // Stop progress bar indeterminate mode after copying and zipping progress is finished.
             AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new ProgressBarIndeterminateSetHandler(AsynchronousServer.ServerWindow.ProgressBarIndeterminateMode), false);
@@ -52,13 +66,13 @@ namespace Server
             // Prepare progress bar. Set the file length for the progress bar.
             AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetProgressLengthHandler(AsynchronousServer.ServerWindow.SetProgressLength), _fileLength);
 
-            // Begin to receive the file from the server.
+            // Check and delte log file from this client if its already exists.
             try
             {
                 var date = DateTime.Now;
                 var dateOnly = date.Date;
 
-                // Check if log zip folder already exists. If yes delete log zip folder.
+                // Check if log zip folder already exists. If yes delete log zip folder, create new file
                 if (File.Exists(_fileSavePath + dateOnly.ToString("yyyy/MM/dd") + "_" + _clientName + ".zip"))
                 {
                     try
@@ -70,9 +84,39 @@ namespace Server
                         log.Error(ex.Message, ex);
                     }
                 }
-                _fileSavePath += dateOnly.ToString("yyyy/MM/dd") + "_" + _clientName + ".zip";
 
-                _clientSocket.BeginReceive(state.buffer, 0, StateObject.BUFFER_SIZE, 0, new AsyncCallback(this.ReceiveCallback), state);
+                _fileSavePath += dateOnly.ToString("yyyy/MM/dd") + "_" + _clientName + ".zip";
+                writer = new BinaryWriter(File.Open(_fileSavePath, FileMode.Create));
+
+                do
+                {
+                    // Receive log file from client
+                    var bytesRead = _clientSocket.Receive(buffer);
+                    if (bytesRead == 0)
+                    {
+                        throw new InvalidOperationException("Remote endpoint disconnected");
+                    }
+
+                    // write to file
+                    writer.Write(buffer, 0, bytesRead);
+                    writer.Flush();
+
+                    AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new ProgressChangeHandler(AsynchronousServer.ServerWindow.ProgressChanged), bytesRead);
+
+                    bytesLeftToReceive -= bytesRead;
+                }
+                while (bytesLeftToReceive > 0);
+
+                writer.Close();
+
+                log.Info("Logs from Client " + _clientName + " successfully received.");
+                log.Info("Logs for Client " + _clientName + " can be found under: " + _fileSavePath);
+
+                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetStatusLogHandler(AsynchronousServer.ServerWindow.UpdateLogStatus), ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextInfo + " Logs from Client " + _clientName + " successfully received.");
+                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetStatusLogHandler(AsynchronousServer.ServerWindow.UpdateLogStatus), ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextInfo + " Logs for Client " + _clientName + " can be found under: " + _fileSavePath);
+
+                // Signal that all bytes have been received. Ready for request logs from client.
+                receiveDone.Set();
             }
             catch (Exception ex)
             {
@@ -80,70 +124,6 @@ namespace Server
             }
         }
 
-        /// <summary>
-        /// Callback when receive a file chunk from the server successfully.
-        /// </summary>
-        private void ReceiveCallback(IAsyncResult ar)
-        {
-            // Retrieve the state object and the client socket.   
-            // from the asynchronous state object. 
-            StateObject state = (StateObject)ar.AsyncState;
-            Socket clientSocket = state.workSocket;
-
-            BinaryWriter writer;
-
-            // Read data from the client. 
-            int bytesRead = clientSocket.EndReceive(ar);
-
-            if (bytesRead > 0)
-            {
-                try
-                {
-                    //If the file doesnt exist, create a file with the filename got from server. If the file exists, append to the file.
-                    if (!File.Exists(_fileSavePath))
-                    {
-                        writer = new BinaryWriter(File.Open(_fileSavePath, FileMode.Create));
-                    }
-                    else
-                    {
-                        writer = new BinaryWriter(File.Open(_fileSavePath, FileMode.Append));
-                    }
-
-                    writer.Write(state.buffer, 0, bytesRead);
-                    writer.Flush();
-                    writer.Close();
-
-                }
-                catch (Exception ex)
-                {
-                    log.Error(ex.Message, ex);
-                }
-
-                // Notify the progressBar to change the position.
-                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new ProgressChangeHandler(AsynchronousServer.ServerWindow.ProgressChanged), bytesRead);
-
-                // Recursively receive the rest file.
-                try
-                {
-                    clientSocket.BeginReceive(state.buffer, 0, StateObject.BUFFER_SIZE, SocketFlags.None, new AsyncCallback(ReceiveCallback), state);
-                }
-                catch (Exception ex)
-                {
-                    log.Error(ex.Message, ex);
-                }
-            }
-            else
-            {
-                log.Info("Logs from Client " + _clientName + " successfully received.");
-                log.Info("Logs for Client " + _clientName + " can be found under: " + _fileSavePath);
-
-                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetStatusLogHandler(AsynchronousServer.ServerWindow.UpdateLogStatus), ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextInfo + " Logs from Client " + ServerFunctions.GetHostNameOfClient(clientSocket) + " successfully received.");
-                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetStatusLogHandler(AsynchronousServer.ServerWindow.UpdateLogStatus), ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextInfo + " Logs for Client " + ServerFunctions.GetHostNameOfClient(clientSocket) + " can be found under: " + _fileSavePath);
-
-                // Signal that all bytes have been received. Ready for request logs from client.
-                receiveDone.Set();
-            }
-        }
         /// <summary>
         /// Receive the file information send by the server.
         /// </summary>
@@ -163,7 +143,6 @@ namespace Server
                 log.Error(ex.Message, ex);
             }
         }
-
 
         public void SendLogsRequest()
         {
@@ -189,11 +168,6 @@ namespace Server
 
                 // Notify the user whether receive the file completely.
                 AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new FileReceiveDoneHandler(AsynchronousServer.ServerWindow.FileReceiveDone));
-
-                IPEndPoint ipEndPoint = _clientSocket.RemoteEndPoint as IPEndPoint;
-                string address = ipEndPoint.Address.ToString();
-                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new RemoveItemHandler(AsynchronousServer.ServerWindow.RemoveItem), address);
-
             }
             catch (Exception ex)
             {

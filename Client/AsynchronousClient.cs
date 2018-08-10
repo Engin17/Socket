@@ -18,7 +18,7 @@ namespace Client
     {
         #region Static members
 
-        #region constant members
+        #region Constant members
         // buffer size for the byte array
         private const int BUFFER_SIZE = 5242880;
         #endregion
@@ -162,11 +162,11 @@ namespace Client
 
             log.Info("Logs have been successfully sent to the server.");
             log.Info("");
-
+        
             // Delete the temporary logs folder
             ClientFunctions.DeleteLogFolderAfterSent();
 
-            this.StartConnectToServer();
+            this.WaitForSignal();
         }
 
         private void Send()
@@ -178,27 +178,30 @@ namespace Client
             this.SendFileInfo();
 
             // Blocking read file and send to the server asynchronously.
-            using (FileStream stream = new FileStream(_fileToSend, FileMode.Open))
+            using (FileStream fs = File.OpenRead(_fileToSend))
             {
-                do
+                var sendBuffer = new byte[5242880];
+                FileInfo fileInfo = new FileInfo(_fileToSend);
+                long fileLen = fileInfo.Length;
+
+                var bytesLeftToTransmit = fileLen;
+
+                while (bytesLeftToTransmit > 0)
                 {
-                    stream.Flush();
-                    readBytes = stream.Read(buffer, 0, BUFFER_SIZE);
+                    var dataToSend = fs.Read(sendBuffer, 0, sendBuffer.Length);
+                    bytesLeftToTransmit -= dataToSend;
 
-                    Socket handler = _clientSocket;
-
-                    try
+                    //loop until the socket have sent everything in the buffer.
+                    var offset = 0;
+                    while (dataToSend > 0)
                     {
-                        // Begin sending the data to the remote device. 
-                        handler.BeginSend(buffer, 0, readBytes, SocketFlags.None, new AsyncCallback(this.SendCallback), handler);
-                    }
-                    catch (Exception ex)
-                    {
-                        log.Error(ex.Message, ex);
+                        var bytesSent = _clientSocket.Send(sendBuffer, offset, dataToSend, SocketFlags.None);
+                        dataToSend -= bytesSent;
+                        offset += bytesSent;
                     }
                 }
-                while (readBytes > 0);
             }
+            sendDone.Set();
         }
 
         /// <summary>
@@ -229,38 +232,7 @@ namespace Client
             {
                 log.Error(ex.Message, ex);
             }
-        }
-
-        /// <summary>
-        /// Callback when a part of the file has been sent to the clients successfully.
-        /// </summary>
-        private void SendCallback(IAsyncResult ar)
-        {
-            // Retrieve the socket from the state object.
-            Socket handler = null;
-
-            try
-            {
-                // Retrieve the socket from the state object.                   
-                handler = (Socket)ar.AsyncState;
-
-                // Complete sending the data to the remote device.
-                int bytesSent = handler.EndSend(ar);
-
-                if (bytesSent == 0)
-                {
-                    // Signal that all bytes have been sent.
-                    sendDone.Set();
-
-                    _clientSocket.Shutdown(SocketShutdown.Both);
-                    _clientSocket.Close();
-                }
-            }
-            catch (Exception ex)
-            {
-                log.Error(ex.Message, ex);
-            }
-        }
+        }          
         #endregion
     }
 }

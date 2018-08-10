@@ -47,6 +47,17 @@ namespace Client
         {
             log.Info("********************************************************************************");
 
+            log.Info("System informations:");
+
+            // Determine Windows version
+            EnvironmentInfo.GetOSVersionInfo();
+
+            // Determine used .NET runtime version
+            EnvironmentInfo.GetRunningNETRuntimeVersion();
+
+            // Determine installed .NET Framework versions
+            EnvironmentInfo.GetInstalledNETVersionFromRegistry();
+
             try
             {
                 // Check if server xml configuration file exists

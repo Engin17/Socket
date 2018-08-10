@@ -60,9 +60,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="AsychronousServerFunctions.cs" />
-    <Compile Include="OSVersionInfo.cs" />
-    <Compile Include="StateObject.cs" />
+    <Compile Include="SychronousServerFunctions.cs" />
+    <Compile Include="EnvironmentInfo.cs" />
     <Page Include="ServerWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

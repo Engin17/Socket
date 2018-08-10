@@ -27,13 +27,13 @@ namespace Server
             InitializeComponent();
 
             // Starts method to read the server configuration from the xml file. 
-            // Creates a xml configuration file when its doesnt exist.
+            // Creates a xml configuration file when it doesnt exist.
             ServerFunctions.ServerStartPreparation();
 
             server = new AsynchronousServer();
             this.DataContext = server;
 
-            // Starts listening to client connections
+            // Starts listening to client connections asynchronously
             this.StartListeningToClients();
         }
 
@@ -50,9 +50,7 @@ namespace Server
                         IsBackground = true
                     };
                     listener.Start();
-                    server.IsServerRunning = true;
                 }
-
                 catch (Exception ex)
                 {
                     log.Error(ex.Message, ex);
@@ -189,14 +187,15 @@ namespace Server
                         }
                     }
 
-                    foreach (Socket handler in server.SelectedClientsForCollectingLogs)
+
+                }
+                foreach (Socket handler in server.SelectedClientsForCollectingLogs)
+                {
+                    Thread logsRequester = new Thread(() => this.RequestLogsOneByOne(handler))
                     {
-                        Thread logsRequester = new Thread(() => this.RequestLogsOneByOne(handler))
-                        {
-                            IsBackground = true
-                        };
-                        logsRequester.Start();
-                    }
+                        IsBackground = true
+                    };
+                    logsRequester.Start();
                 }
             }
             catch (Exception ex)
@@ -211,19 +210,14 @@ namespace Server
             {
                 flag++;
 
-                AsychronousServerFunctions serverFunctions;
+                SychronousServerFunctions serverFunctions;
 
-                serverFunctions = new AsychronousServerFunctions(handler);
+                serverFunctions = new SychronousServerFunctions(handler);
 
                 serverFunctions.SendLogsRequest();
 
                 if (flag == server.SelectedClientsForCollectingLogs.Count)
                 {
-                    foreach (Socket item in server.SelectedClientsForCollectingLogs)
-                    {
-                        server.ConnectedClients.Remove(item);
-                    }
-
                     // Delete selected client for collecting logs list after the logs for these clients have been successfully received
                     server.SelectedClientsForCollectingLogs.Clear();
 

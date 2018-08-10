@@ -132,7 +132,7 @@ namespace Server
 
                 log.Info("Log server is ready for client connections.");
 
-                //Server.Dispatcher.BeginInvoke(new SetStatusLogHandler(Server.UpdateLogStatus), LogText);
+                IsServerRunning = true;
 
                 // Loop listening the client.
                 while (true)
@@ -146,6 +146,8 @@ namespace Server
             }
             catch (Exception ex)
             {
+                IsServerRunning = false;
+
                 log.Error(ex.Message, ex);
             }
         }
