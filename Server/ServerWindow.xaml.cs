@@ -228,7 +228,11 @@ namespace Server
 
         private void Button_RestartServer(object sender, RoutedEventArgs e)
         {
-
+            Thread listener = new Thread(() => server.RestartServer())
+            {
+                IsBackground = true
+            };
+            listener.Start();
         }
     }
 }

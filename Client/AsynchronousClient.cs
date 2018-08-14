@@ -41,6 +41,7 @@ namespace Client
         public IPAddress ServerIP { get; set; }
         public int ServerPort { get; set; }
         public Socket ClientSocket { get; set; }
+        public bool IsSocketConnected { get; set; }
         #endregion
 
         #region Constructor
@@ -51,7 +52,7 @@ namespace Client
             _fileToSend = ClientFunctions.FileToSend;
         }
         #endregion
-
+       
         #region Function members
         /// <summary>
         /// Start connect to the server.
@@ -78,6 +79,14 @@ namespace Client
 
                 // Wait until the connection is done
                 connectDone.WaitOne();
+
+                // Start method which checks periodically if the Socket still connected
+                new Thread(() => SocketConnected(_clientSocket))
+                {
+                    IsBackground = true
+                }.Start();
+
+                this.IsSocketConnected = true;
 
                 // Begin to wait for logs request signal from the server.
                 this.WaitForSignal();
@@ -106,6 +115,10 @@ namespace Client
 
                 log.Info("Client successfully connected to the server.");
                 log.Info("");
+            }
+            catch (SocketException)
+            {
+                //this.StartConnectToServer();
             }
             catch (Exception ex)
             {
@@ -162,7 +175,7 @@ namespace Client
 
             log.Info("Logs have been successfully sent to the server.");
             log.Info("");
-        
+
             // Delete the temporary logs folder
             ClientFunctions.DeleteLogFolderAfterSent();
 
@@ -171,7 +184,6 @@ namespace Client
 
         private void Send()
         {
-            int readBytes = 0;
             byte[] buffer = new byte[BUFFER_SIZE];
 
             // Send file information to the clients.
@@ -232,7 +244,28 @@ namespace Client
             {
                 log.Error(ex.Message, ex);
             }
-        }          
+        }
+
+        private void SocketConnected(Socket s)
+        {
+            while (IsSocketConnected)
+            {
+                Thread.Sleep(5000);
+
+                try
+                {
+                    Console.WriteLine("check");
+                    bool part1 = s.Poll(1000, SelectMode.SelectRead);
+                    bool part2 = (s.Available == 0);
+                }
+                catch (ObjectDisposedException)
+                {
+                    log.Warn("Socket disconnected. Try connecting to server");
+                    IsSocketConnected = false;
+                    this.StartConnectToServer();
+                }
+            }
+        }
         #endregion
     }
 }

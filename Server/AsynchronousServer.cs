@@ -23,7 +23,7 @@ namespace Server
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         // Thread signal
-        private static AutoResetEvent connectDone = new AutoResetEvent(false);
+        private static ManualResetEvent connectDone = new ManualResetEvent(false);
 
         #endregion
 
@@ -35,10 +35,11 @@ namespace Server
         #endregion
 
         #region Field members
-        private readonly string _fileSavePath = Environment.ExpandEnvironmentVariables(@"%USERPROFILE%\AppData\Local\SeeTec\Templogs\");      
+        private readonly string _fileSavePath = Environment.ExpandEnvironmentVariables(@"%USERPROFILE%\AppData\Local\SeeTec\Templogs\");
         private bool _isServerRunning = false;
         private string _serverStatus = "Down";
         private Brush _serverStatusForeground;
+        private Socket _listener = null;
         #endregion
 
         #region Property members
@@ -122,23 +123,24 @@ namespace Server
 
             // Create a TCP/IP socket
             // Using IPv4 as the network protocol
-            Socket listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            _listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             // Bind the socket to the local endpoint and listen for incoming connections. 
             try
             {
-                listener.Bind(localEndPoint);
-                listener.Listen(AsynchronousServer.MAX_CONNECTED_CLIENT_SOCKETS);
+                _listener.Bind(localEndPoint);
+                _listener.Listen(AsynchronousServer.MAX_CONNECTED_CLIENT_SOCKETS);
 
                 log.Info("Log server is ready for client connections.");
 
                 IsServerRunning = true;
 
                 // Loop listening the client.
-                while (true)
-                {                  
+                while (IsServerRunning)
+                {
+                    connectDone.Reset();
                     // Start an asynchronous socket to listen for connections. 
-                    listener.BeginAccept(new AsyncCallback(this.AcceptCallback), listener);
+                    _listener.BeginAccept(new AsyncCallback(this.AcceptCallback), _listener);
 
                     // Wait until a connection is made before continuing. 
                     connectDone.WaitOne();
@@ -150,6 +152,8 @@ namespace Server
 
                 log.Error(ex.Message, ex);
             }
+
+            log.Warn("Log server listener closed");
         }
 
         /// <summary>
@@ -159,6 +163,14 @@ namespace Server
         {
             try
             {
+                // Signal the connect thread to continue.  
+                connectDone.Set();
+
+                if (!IsServerRunning)
+                {
+                    return;
+                }
+
                 // Get the socket that handles the client request.
                 Socket listener = (Socket)ar.AsyncState;
                 Socket handler = listener.EndAccept(ar);
@@ -168,30 +180,54 @@ namespace Server
                 // Try to get the Hostname of the client which will connect to the server
                 IPHostEntry entry = Dns.GetHostEntry(ipEndPoint.Address);
 
-                if (entry == null)
+                // Check if the client which wants to connect is already connected.
+                if (!ServerFunctions.CheckClientAlreadyConnected(ConnectedClients, handler))
                 {
-                    entry.HostName = "Unknown";
-                    log.Warn("Couldnt get Hostname of the connected client.");
+                    if (entry == null)
+                    {
+                        entry.HostName = "Unknown";
+                        log.Warn("Couldnt get Hostname of the connected client.");
+                    }
+
+                    if (ipEndPoint != null)
+                    {
+                        ServerWindow.Dispatcher.BeginInvoke(new AddClientHandler(ServerWindow.AddClient), ipEndPoint, entry);
+                    }
+
+                    // Add connected client to the connected client list
+                    ConnectedClients.Add(handler);
+
+                    log.Info("Client " + entry.HostName + " successfully connected to the server.");
+                }
+                else
+                {
+                    // Close socket because this socket is already connected
+                    handler.Close();
                 }
 
-                if (ipEndPoint != null)
-                {
-                    ServerWindow.Dispatcher.BeginInvoke(new AddClientHandler(ServerWindow.AddClient), ipEndPoint, entry);
-                }
-
-                // Add connected client to the connected client list
-                ConnectedClients.Add(handler);
-
-                log.Info("Client " + entry.HostName + " successfully connected to the server.");
-
-                // Signal the connect thread to continue.  
-                connectDone.Set();
-
+            }
+            catch (ObjectDisposedException)
+            {
+                log.Error("Log server listener closed");
             }
             catch (Exception ex)
             {
                 log.Error(ex.Message, ex);
             }
+        }
+
+        /// <summary>
+        /// Close server listener for client connections and start a new listener for client connections
+        /// </summary>
+        public void RestartServer()
+        {
+            if (_listener != null)
+            {
+                IsServerRunning = false;
+                _listener.Close();
+            }
+
+            this.StartServerListeningClientConnections();
         }
 
         #region Notify property changed   

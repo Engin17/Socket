@@ -111,9 +111,11 @@ namespace Server
 
                 log.Info("Logs from Client " + _clientName + " successfully received.");
                 log.Info("Logs for Client " + _clientName + " can be found under: " + _fileSavePath);
+                log.Info("");
 
                 AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetStatusLogHandler(AsynchronousServer.ServerWindow.UpdateLogStatus), ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextInfo + " Logs from Client " + _clientName + " successfully received.");
                 AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetStatusLogHandler(AsynchronousServer.ServerWindow.UpdateLogStatus), ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextInfo + " Logs for Client " + _clientName + " can be found under: " + _fileSavePath);
+                AsynchronousServer.ServerWindow.Dispatcher.BeginInvoke(new SetStatusLogHandler(AsynchronousServer.ServerWindow.UpdateLogStatus), "\n");
 
                 // Signal that all bytes have been received. Ready for request logs from client.
                 receiveDone.Set();

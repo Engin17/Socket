@@ -42,7 +42,7 @@ namespace Server
             log.Info("********************************************************************************");
 
             log.Info("System informations:");
-            
+
             // Determine Windows version
             EnvironmentInfo.GetOSVersionInfo();
 
@@ -213,6 +213,27 @@ namespace Server
             double size = Math.Round((fileSize / 1024d) / 1024d, 2);
 
             return size;
+        }
+
+        /// <summary>
+        /// Method to check if the client which wants to connect again already connected.
+        /// We can avoid clients to connected several times
+        /// Iterate through already connected clients list and check if this client is in the list
+        /// </summary>
+        public static bool CheckClientAlreadyConnected(IList<Socket> socketList, Socket socket)
+        {
+            IPEndPoint s1 = socket.RemoteEndPoint as IPEndPoint;
+
+            for (int i = 0; i < socketList.Count; i++)
+            {
+                IPEndPoint s2 = socketList[i].RemoteEndPoint as IPEndPoint;
+
+                if (s1.Address.Equals(s2.Address))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

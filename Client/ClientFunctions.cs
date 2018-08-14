@@ -22,9 +22,9 @@ namespace Client
         private static readonly string clientConfigurationFileName = "logClient.conf.xml";
 
         private static string seeTecInstallPath = string.Empty;
-        
+
         private static IPAddress clientIP;
-    
+
         public static IPAddress ServerIP { get; set; }
         public static int ServerPort { get; set; }
 
@@ -327,7 +327,7 @@ namespace Client
                 log.Error(ex.Message, ex);
             }
         }
-      
+
         /// <summary>
         /// Method to find the SeeTec installation path
         /// First check if Cayuga is installed in the default path
@@ -335,6 +335,7 @@ namespace Client
         /// </summary>
         public static void SeeTecInstallPath()
         {
+            bool stopSearch = false;
             string defaultSeeTecInstallPath = @"C:\Program Files\SeeTec";
 
             try
@@ -355,37 +356,60 @@ namespace Client
                     // Check for available hard drives and iterate one by one over all hard drives 
                     foreach (DriveInfo d in DriveInfo.GetDrives().Where(d => d.IsReady))
                     {
-                        try
+                        if (!stopSearch)
                         {
-                            // First search in the top directory for SeeTec folder
-                            dirsLevelOne = Directory.GetDirectories(d.RootDirectory.FullName);
-
-                            foreach (var item in dirsLevelOne)
+                            try
                             {
-                                // Check if SeeTec folder is found in the top directory
-                                dirsLevelOne2 = Directory.GetDirectories(d.RootDirectory.FullName, "SeeTec");
+                                // First search in the top directory for SeeTec folder
+                                dirsLevelOne = Directory.GetDirectories(d.RootDirectory.FullName);
 
-                                // If SeeTec folder is found in the top directory then set the installation path
-                                if (dirsLevelOne2.Length == 1)
+                                foreach (var item in dirsLevelOne)
                                 {
-                                    ClientFunctions.seeTecInstallPath = dirsLevelOne2[0];
-                                }
-                                else
-                                {
-                                    // If SeeTec folder is not in the top directory then search for the folder in the subdirectory for it
-                                    dirsLevelTwo = Directory.GetDirectories(item, "SeeTec");
-
-                                    // If SeeTec folder is found in the subdirectory then set the installation path
-                                    if (dirsLevelTwo.Length == 1)
+                                    try
                                     {
-                                        ClientFunctions.seeTecInstallPath = dirsLevelTwo[0];
+                                        // Check if SeeTec folder is found in the top directory
+                                        dirsLevelOne2 = Directory.GetDirectories(d.RootDirectory.FullName, "SeeTec");
+
+                                        // If SeeTec folder is found in the top directory then set the installation path
+                                        if (dirsLevelOne2.Length == 1 && Directory.Exists(dirsLevelOne2[0] + @"\log"))
+                                        {
+                                            ClientFunctions.seeTecInstallPath = dirsLevelOne2[0];
+                                            stopSearch = true;
+                                            break;
+                                        }
+                                    }
+                                    catch (UnauthorizedAccessException)
+                                    {
+                                        // Do nothing. Just catch and skip this exception
+                                    }
+                                    try
+                                    {
+                                        // If SeeTec folder is not in the top directory then search for the folder in the subdirectory for it
+                                        dirsLevelTwo = Directory.GetDirectories(item, "SeeTec");
+
+                                        // If SeeTec folder is found in the subdirectory then set the installation path
+                                        if (dirsLevelTwo.Length == 1 && Directory.Exists(dirsLevelTwo[0] + @"\log"))
+                                        {
+                                            ClientFunctions.seeTecInstallPath = dirsLevelTwo[0];
+                                            stopSearch = true;
+                                            break;
+                                        }
+                                    }
+                                    catch (UnauthorizedAccessException)
+                                    {
+                                        // Do nothing. Just catch and skip this exception
                                     }
                                 }
                             }
+                            catch (Exception ex)
+                            {
+                                log.Error(ex.Message, ex);
+                                continue;
+                            }
                         }
-                        catch (Exception ex)
+                        if (stopSearch)
                         {
-                            log.Error(ex.Message, ex);
+                            break;
                         }
                     }
                 }
