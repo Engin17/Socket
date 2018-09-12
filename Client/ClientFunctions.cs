@@ -105,7 +105,7 @@ namespace Client
                 else
                 {
                     // Set default port for the clientSocket and the IP for the server
-                    ClientFunctions.ServerPort = 60100;
+                    ClientFunctions.ServerPort = 64500;
                     ClientFunctions.ServerIP = IPAddress.Parse("127.0.0.1");
                     MessageBox.Show("The IP for the ServerLogs server is set to: 127.0.0.1\nPlease open " + ClientFunctions.clientConfigurationFileName + " inside: \n" + ClientFunctions.clientConfigurationPath + "\nand configure the Update Server IP", "IP Configuration", MessageBoxButton.OK, MessageBoxImage.Warning);
 
@@ -238,6 +238,10 @@ namespace Client
                     // Call this method again after deleting old logs folder
                     CopyLogs(logPath, logCopyTemp, copySubDirs);
                 }
+            }
+            catch (DirectoryNotFoundException ex)
+            {
+                log.Warn(ex.Message);
             }
             catch (Exception ex)
             {

@@ -1,5 +1,6 @@
 ﻿using log4net;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
@@ -15,12 +16,24 @@ namespace Server
     /// </summary>
     public partial class ServerWindow : Window
     {
+        #region Static members
+
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static StringBuilder sb = new StringBuilder();
 
-        private static int flag = 0;
+        private static int requestCount = 0;
+
+        #endregion
+
+
+        #region Field members
 
         AsynchronousServer server;
+
+        #endregion
+
+
+        #region Constructor
 
         public ServerWindow()
         {
@@ -33,9 +46,14 @@ namespace Server
             server = new AsynchronousServer();
             this.DataContext = server;
 
-            // Starts listening to client connections asynchronously
+            // Starts listening to client connections asynchronously in a new thread
             this.StartListeningToClients();
         }
+
+        #endregion
+
+
+        #region Functions
 
         private void StartListeningToClients()
         {
@@ -70,37 +88,95 @@ namespace Server
         }
 
         /// <summary>
-        /// Remove the client address which disconnect from the server.
+        /// Remove the client IP addres from the Listbox lbxServer
         /// </summary>
-        public void RemoveItem(string ipAddress)
+        public void RemoveClient(string iPAddress, bool iPWithName)
         {
-            int[] indexes = new int[lbxServer.SelectedItems.Count];
-            int index = 0;
-            int currentIndex = 0;
+            List<object> removeSocket = new List<object>();
 
-            foreach (object item in lbxServer.SelectedItems)
+            if (iPWithName)
             {
+                int index = iPAddress.IndexOf(" ");
 
-                int end = item.ToString().IndexOf(' ');
-
-                if (string.Equals(item.ToString().Substring(0, end), ipAddress, StringComparison.OrdinalIgnoreCase))
+                if (index > 0)
                 {
-                    index = lbxServer.Items.IndexOf(item);
-                    indexes[currentIndex] = index;
-
-                    currentIndex++;
+                    iPAddress = iPAddress.Substring(0, index);
                 }
             }
 
-            foreach (int i in indexes)
+            foreach (object item in lbxServer.Items)
             {
-                lbxServer.Items.RemoveAt(i);
+                string address = item.ToString();
+
+                int index = address.IndexOf(" ");
+
+                if (index > 0)
+                {
+                    address = address.Substring(0, index);
+                }
+
+                if (string.Equals(iPAddress, address, StringComparison.OrdinalIgnoreCase))
+                {
+                    removeSocket.Add(item);
+                }
+            }
+
+            foreach (object item in removeSocket)
+            {
+                lbxServer.Items.Remove(item);
             }
 
             lbxServer.InvalidateArrange();
             lbxServer.UpdateLayout();
         }
 
+        /// <summary>
+        /// Remove client socket with the transferred IP address if its disconnected
+        /// </summary>
+        public void RemoveClientSocket(string iPAddress, bool iPWithName)
+        {
+            List<Socket> removeSocket = new List<Socket>();
+
+            foreach (Socket handler in server.ConnectedClients)
+            {
+                IPEndPoint ipEndPoint = handler.RemoteEndPoint as IPEndPoint;
+                string address = ipEndPoint.Address.ToString();
+
+                if (iPWithName)
+                {
+                    int index = iPAddress.IndexOf(" ");
+
+                    if (index > 0)
+                    {
+                        iPAddress = iPAddress.Substring(0, index);
+                    }
+                }
+
+                if (string.Equals(iPAddress, address, StringComparison.OrdinalIgnoreCase))
+                {
+                    removeSocket.Add(handler);
+                }
+            }
+
+            foreach (Socket item in removeSocket)
+            {
+                server.ConnectedClients.Remove(item);
+
+                try
+                {
+                    item.Shutdown(SocketShutdown.Both);
+                    item.Close();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Do nothing because the socket is already closed
+                }
+            }
+        }
+
+        /// <summary>
+        /// Needed for Server UI outputs
+        /// </summary>
         public void UpdateLogStatus(string log)
         {
             sb.Append(log);
@@ -108,13 +184,53 @@ namespace Server
         }
 
         /// <summary>
-        /// Reset the values of the progress bar when the file is received.
+        /// Reset the values of the progress bar and enable listbox and request logs button when the file is received.
         /// </summary>
         public void FileReceiveDone()
         {
             progressBar.Visibility = Visibility.Hidden;
             tbProgressText.Visibility = Visibility.Hidden;
             btnRequestLogs.IsEnabled = true;
+            lbxServer.IsEnabled = true;
+        }
+
+        /// <summary>
+        /// Delete Socket if its closed and reset the UI
+        /// </summary>
+        public void ResetUIAfterSocketException(Socket clientSocket)
+        {
+            IPEndPoint ipEndPoint = clientSocket.RemoteEndPoint as IPEndPoint;
+            string address = ipEndPoint.Address.ToString();
+
+            log.Warn("Request problem from client: " + address);
+            this.UpdateLogStatus(ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextWarning + "Request problem from client: " + address);
+
+            bool clientConnected = ServerFunctions.CheckClientConnected(clientSocket);
+
+            if (!clientConnected)
+            {             
+                log.Warn("Selected client :" + address + " is not connected. Remove client from list.");
+                this.UpdateLogStatus(ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextWarning + "Selected client :" + address + " is not connected. Remove client from list.");
+                this.UpdateLogStatus("\n");
+
+                this.RemoveClient(address, false);
+                this.RemoveClientSocket(address, false);
+
+                try
+                {
+                    clientSocket.Shutdown(SocketShutdown.Both);
+                    clientSocket.Close();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Socket is already closed. Do nothing
+                }
+            }
+
+            progressBar.Visibility = Visibility.Hidden;
+            tbProgressText.Visibility = Visibility.Hidden;
+            btnRequestLogs.IsEnabled = true;
+            lbxServer.IsEnabled = true;
         }
 
         #region Change the progressBar members
@@ -150,6 +266,16 @@ namespace Server
             }
         }
 
+        #endregion
+
+        /// <summary>
+        /// Enable / Disable Listbox 
+        /// </summary>
+        public void ListBoxEnabled(bool status)
+        {
+            lbxServer.IsEnabled = status;
+        }
+
         /// <summary>
         /// Change the position of the progressBar
         /// </summary>
@@ -158,44 +284,111 @@ namespace Server
             progressBar.Value += bytesRead;
         }
 
+        /// <summary>
+        /// Request logs for the selected clients one by another.
+        /// </summary>
+        private void RequestLogsOneByOne(Socket handler)
+        {
+            lock (this)
+            {
+                requestCount++;
+
+                SychronousServerFunctions serverFunctions;
+
+                serverFunctions = new SychronousServerFunctions(handler);
+
+                serverFunctions.SendLogsRequest();
+
+                if (requestCount == server.SelectedClientsForCollectingLogs.Count)
+                {
+                    // Delete selected client for collecting logs list after the logs for these clients have been successfully received
+                    server.SelectedClientsForCollectingLogs.Clear();
+
+                    requestCount = 0;
+                }
+            }
+        }
+
         #endregion
+
+
+        #region Button event members
 
         private void Button_RequestLogs(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Check selected clients for log request
-                foreach (object item in lbxServer.SelectedItems)
+                if (lbxServer.SelectedItems.Count != 0)
                 {
-                    // Iterate through the list with connected clients and check if its selected by the user.
-                    // If yes: Add the client to the list for log request
-                    foreach (Socket handler in server.ConnectedClients)
+                    // Check selected clients before log request if there are connected 
+                    for (int i = 0; i < lbxServer.SelectedItems.Count; i++)
                     {
-                        IPEndPoint ipEndPoint = handler.RemoteEndPoint as IPEndPoint;
-                        string address = ipEndPoint.Address.ToString();
-
-                        string selectedItem = item.ToString();
-                        int index = selectedItem.IndexOf(" ");
-                        if (index > 0)
+                        for (int j = 0; j < server.ConnectedClients.Count; j++)
                         {
-                            selectedItem = selectedItem.Substring(0, index);
-                        }
+                            string iPAddress = "";
 
-                        if (string.Equals(selectedItem, address, StringComparison.OrdinalIgnoreCase))
-                        {
-                            server.SelectedClientsForCollectingLogs.Add(handler);
+                            IPEndPoint ipEndPoint = server.ConnectedClients[j].RemoteEndPoint as IPEndPoint;
+                            string address = ipEndPoint.Address.ToString();
+
+                            int index = lbxServer.SelectedItems[i].ToString().IndexOf(" ");
+
+                            if (index > 0)
+                            {
+                                iPAddress = lbxServer.SelectedItems[i].ToString().Substring(0, index);
+                            }
+
+                            if (string.Equals(iPAddress, address, StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Check if selected clients are still connected
+                                bool isClientConnected = ServerFunctions.CheckClientConnected(server.ConnectedClients[j]);
+
+                                if (!isClientConnected)
+                                {
+                                    log.Warn("Selected client :" + lbxServer.SelectedItems[i].ToString() + " is not connected. Remove client from list.");
+                                    this.UpdateLogStatus(ServerFunctions.GetCurrentDateTime() + ServerFunctions.LogTextWarning + "Selected client :" + lbxServer.SelectedItems[i].ToString() + " is not connected. Remove client from list.");
+                                    this.UpdateLogStatus("\n");
+
+                                    this.RemoveClientSocket(lbxServer.SelectedItems[i].ToString(), true);
+
+                                    this.RemoveClient(lbxServer.SelectedItems[i].ToString(), true);
+                                }
+                            }
                         }
                     }
 
-
-                }
-                foreach (Socket handler in server.SelectedClientsForCollectingLogs)
-                {
-                    Thread logsRequester = new Thread(() => this.RequestLogsOneByOne(handler))
+                    // Check selected clients for log request
+                    foreach (object item in lbxServer.SelectedItems)
                     {
-                        IsBackground = true
-                    };
-                    logsRequester.Start();
+                        // Iterate through the list with connected clients and check if its selected by the user.
+                        // If yes: Add the client to the list for log request
+                        foreach (Socket handler in server.ConnectedClients)
+                        {
+                            IPEndPoint ipEndPoint = handler.RemoteEndPoint as IPEndPoint;
+                            string address = ipEndPoint.Address.ToString();
+
+                            string selectedItem = item.ToString();
+                            int index = selectedItem.IndexOf(" ");
+
+                            if (index > 0)
+                            {
+                                selectedItem = selectedItem.Substring(0, index);
+                            }
+
+                            if (string.Equals(selectedItem, address, StringComparison.OrdinalIgnoreCase))
+                            {
+                                server.SelectedClientsForCollectingLogs.Add(handler);
+                            }
+                        }
+                    }
+
+                    foreach (Socket handler in server.SelectedClientsForCollectingLogs)
+                    {
+                        Thread logsRequester = new Thread(() => this.RequestLogsOneByOne(handler))
+                        {
+                            IsBackground = true
+                        };
+                        logsRequester.Start();
+                    }
                 }
             }
             catch (Exception ex)
@@ -204,35 +397,21 @@ namespace Server
             }
         }
 
-        private void RequestLogsOneByOne(Socket handler)
-        {
-            lock (this)
-            {
-                flag++;
-
-                SychronousServerFunctions serverFunctions;
-
-                serverFunctions = new SychronousServerFunctions(handler);
-
-                serverFunctions.SendLogsRequest();
-
-                if (flag == server.SelectedClientsForCollectingLogs.Count)
-                {
-                    // Delete selected client for collecting logs list after the logs for these clients have been successfully received
-                    server.SelectedClientsForCollectingLogs.Clear();
-
-                    flag = 0;
-                }
-            }
-        }
-
         private void Button_RestartServer(object sender, RoutedEventArgs e)
         {
+            log.Info("Server has been restarted by user");
+
+            // Starts method to read the server configuration from the xml file. 
+            // Creates a xml configuration file when it doesnt exist.
+            ServerFunctions.ServerStartPreparation();
+
             Thread listener = new Thread(() => server.RestartServer())
             {
                 IsBackground = true
             };
             listener.Start();
         }
+
+        #endregion
     }
 }

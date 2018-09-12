@@ -1,33 +1,36 @@
 ﻿using log4net;
 using Microsoft.Win32;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
+
 
 namespace Server
 {
+    /// <summary>
+    /// Class needed to read environment information
+    /// </summary>
     public class EnvironmentInfo
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
+
         #region OS version information
-       
+
         /// <summary> 
         /// Init OSVersionInfo object by current windows environment 
         /// </summary> 
-        /// <returns></returns> 
         public static void GetOSVersionInfo()
         {
             string osVersion = Environment.OSVersion.VersionString;
 
             log.Info(osVersion);
         }
+
         #endregion
 
+
         #region .NET information
+
         public static void GetRunningNETRuntimeVersion()
         {
             log.Info("");
@@ -104,6 +107,7 @@ namespace Server
 
             log.Info("");
         }
+
         #endregion
     }
 }

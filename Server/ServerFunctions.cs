@@ -1,21 +1,22 @@
 ﻿using log4net;
-using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Xml;
 
+
 namespace Server
 {
+
     public class ServerFunctions
     {
+        #region Static members
+
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         // Needed during Server start preparation
@@ -28,9 +29,13 @@ namespace Server
         public static string LogTextInfo => "INFO: ";
         public static string LogTextError => "ERROR: ";
         public static string LogTextWarning => "WARNING: ";
-        public static string LogText => "Log Server is ready to request logs! \n";
 
-        public static string ProgressTextLogsRequested => "Loading Files. Please Wait...";
+        public static string ProgressTextLogsRequested => "Logs requested. Please Wait...";
+
+        #endregion
+
+
+        #region Functions
 
         /// <summary>
         /// Method for server preparation.
@@ -90,7 +95,7 @@ namespace Server
                 else
                 {
                     // Set default port for the server
-                    ServerFunctions.ServerPort = 60100;
+                    ServerFunctions.ServerPort = 64500;
 
                     // Search for IPv4 IP addresses 
                     string hostName = Dns.GetHostName();
@@ -128,7 +133,6 @@ namespace Server
                         IndentChars = "  ",
                         NewLineHandling = NewLineHandling.Replace
                     };
-
 
                     // Check if the configuration directory exists. If not create directory
                     if (!Directory.Exists(ServerFunctions.serverConfigurationPath))
@@ -192,7 +196,20 @@ namespace Server
             {
                 // Try to get the Hostname of the client which has sent the logs successfully to the server
                 IPEndPoint ipEndPoint = clientSocket.RemoteEndPoint as IPEndPoint;
-                IPHostEntry entry = Dns.GetHostEntry(ipEndPoint.Address);
+
+                IPHostEntry entry = new IPHostEntry
+                {
+                    HostName = "Unknown"
+                };
+
+                try
+                {
+                    entry = Dns.GetHostEntry(ipEndPoint.Address);
+                }
+                catch (Exception)
+                {
+                    // Cannot determine the name of the Client. Do nothing, just skip.
+                }
 
                 return entry.HostName;
             }
@@ -200,16 +217,43 @@ namespace Server
             {
                 log.Error(ex.Message, ex);
 
-                return null;
+                log.Warn("Couldnt get Hostname of the connected client.");
+
+                return "Unknown";
             }
         }
 
         /// <summary>
-        /// Method to check how big the logs zip file is in MB
+        /// Method to determine the IPHostEntry from the IPEndPoint
+        /// </summary>
+        public static IPHostEntry GetIPHostEntryOfClient(IPEndPoint endPoint)
+        {
+            IPHostEntry entry = new IPHostEntry
+            {
+                HostName = "Unknown"
+            };
+
+            // Try to get the entry of the client which will connect to the server
+            try
+            {
+                entry = Dns.GetHostEntry(endPoint.Address);
+
+                return entry;
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex.Message, ex);
+
+                return entry;
+            }
+        }
+
+        /// <summary>
+        /// Method to check how big the log zip file is in megabytes
         /// </summary>
         public static double CheckZipSize(long fileSize)
         {
-            // Calculate bytes in mega bytes
+            // Calculate bytes in megabytes
             double size = Math.Round((fileSize / 1024d) / 1024d, 2);
 
             return size;
@@ -220,20 +264,78 @@ namespace Server
         /// We can avoid clients to connected several times
         /// Iterate through already connected clients list and check if this client is in the list
         /// </summary>
-        public static bool CheckClientAlreadyConnected(IList<Socket> socketList, Socket socket)
+        public static bool CheckClientStatus(IList<Socket> socketList, Socket socket, bool checkConnection)
         {
-            IPEndPoint s1 = socket.RemoteEndPoint as IPEndPoint;
+            IPEndPoint socket1 = socket.RemoteEndPoint as IPEndPoint;
 
             for (int i = 0; i < socketList.Count; i++)
             {
-                IPEndPoint s2 = socketList[i].RemoteEndPoint as IPEndPoint;
+                IPEndPoint socket2 = socketList[i].RemoteEndPoint as IPEndPoint;
 
-                if (s1.Address.Equals(s2.Address))
+                if (socket1.Address.Equals(socket2.Address))
                 {
-                    return true;
+                    // Check if socket is connected
+                    if (checkConnection)
+                    {
+                        if (ServerFunctions.CheckClientConnected(socketList[i]))
+                        {
+                            return true;
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        return true;
+                    }
                 }
             }
             return false;
         }
+
+        /// <summary>
+        /// Method to check if the socket is still connected
+        /// </summary>
+        public static bool CheckClientConnected(Socket socket)
+        {
+            byte[] msg = Encoding.UTF8.GetBytes("CheckStatus");
+
+            bool blockingState = socket.Blocking;
+
+            try
+            {
+                byte[] tmp = new byte[1];
+
+                socket.Blocking = false;
+                socket.Send(msg);
+
+                return true;
+            }
+            catch (SocketException e)
+            {
+                // 10035 == WSAEWOULDBLOCK
+                if (e.NativeErrorCode.Equals(10035))
+                {
+                    //Still Connected, but the Send would block
+
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+            finally
+            {
+                socket.Blocking = blockingState;
+            }
+        }
+        #endregion
     }
 }

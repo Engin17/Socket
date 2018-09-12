@@ -89,7 +89,7 @@
 
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Grid.Column="1" Grid.ColumnSpan="9" Grid.Row="13" Grid.RowSpan="1">
             <Border BorderBrush="Black" BorderThickness="1">
-                <TextBlock Name="tbOutput" Background="White" Height="Auto" Foreground="Black" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
+                <TextBlock Name="tbOutput" Background="White" Height="Auto" Foreground="Black" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" FontSize="15"/>
             </Border>
         </ScrollViewer>
 

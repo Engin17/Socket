@@ -18,42 +18,49 @@ namespace Client
     {
         #region Static members
 
-        #region Constant members
-        // buffer size for the byte array
-        private const int BUFFER_SIZE = 5242880;
-        #endregion
 
         #region Static field members
+
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private static AutoResetEvent connectDone = new AutoResetEvent(false);
-        private static AutoResetEvent sendDone = new AutoResetEvent(false);
+
         #endregion
+
 
         #endregion // Static members
 
+
         #region Field members
+
         private Socket _clientSocket;
-        private string _fileToSend;
+
         #endregion
 
+
         #region Property members
+
         public IPAddress ServerIP { get; set; }
         public int ServerPort { get; set; }
         public Socket ClientSocket { get; set; }
         public bool IsSocketConnected { get; set; }
+
         #endregion
 
+
         #region Constructor
+
         public AsynchronousClient()
         {
             ServerIP = ClientFunctions.ServerIP;
             ServerPort = ClientFunctions.ServerPort;
-            _fileToSend = ClientFunctions.FileToSend;
         }
+
         #endregion
-       
+
+
         #region Function members
+
         /// <summary>
         /// Start connect to the server.
         /// </summary>
@@ -67,6 +74,17 @@ namespace Client
 
             try
             {
+                // Creates one SocketPermission object for access restrictions
+                SocketPermission permission = new SocketPermission(
+                NetworkAccess.Connect,    // Allowed to accept connections 
+                TransportType.Tcp,        // Defines transport types 
+                ServerIP.ToString(),      // The IP addresses of local host 
+                SocketPermission.AllPorts // Specifies all ports 
+                );
+
+                // Ensures the code to have permission to access a Socket 
+                permission.Demand();
+
                 // Remote endpoint is the server
                 IPEndPoint remoteEP = new IPEndPoint(ServerIP, ServerPort);
 
@@ -80,16 +98,17 @@ namespace Client
                 // Wait until the connection is done
                 connectDone.WaitOne();
 
-                // Start method which checks periodically if the Socket still connected
+                // Start method which checks periodically if the Socket is still connected
                 new Thread(() => SocketConnected(_clientSocket))
                 {
                     IsBackground = true
+
                 }.Start();
 
                 this.IsSocketConnected = true;
 
                 // Begin to wait for logs request signal from the server.
-                this.WaitForSignal();
+                new SychronousClientFunctions(_clientSocket).WaitForSignal();
             }
             catch (Exception ex)
             {
@@ -118,7 +137,9 @@ namespace Client
             }
             catch (SocketException)
             {
-                //this.StartConnectToServer();
+                // TODO: maybe we dont need no sleep here
+                Thread.Sleep(3000);
+                this.StartConnectToServer();
             }
             catch (Exception ex)
             {
@@ -127,142 +148,52 @@ namespace Client
         }
 
         /// <summary>
-        /// Start listening for logs request
+        /// Method to check if the client socket is connected to the server
         /// </summary>
-        public void WaitForSignal()
-        {
-            byte[] bytes = new byte[256];
-
-            try
-            {
-                // Wait for log request
-                _clientSocket.Receive(bytes);
-
-                // Start new thread to copy and zip the logs
-                Thread t = new Thread(() => this.CreateLogs())
-                {
-                    IsBackground = true
-                };
-                t.Start();
-
-                log.Info("Starting copy and zip logs");
-            }
-            catch (Exception ex)
-            {
-                log.Error(ex.Message, ex);
-            }
-        }
-
-        // Copy and zip logs
-        private void CreateLogs()
-        {
-            ClientFunctions.CreateClientServerLogFolder();
-
-            ClientFunctions.CopyLogs(ClientFunctions.ClientLogsPath, ClientFunctions.ClientLogsTempPath, true);
-            ClientFunctions.CopyLogs(ClientFunctions.ClientConfPath, ClientFunctions.ClientConfTempPath, true);
-            ClientFunctions.CopyLogs(ClientFunctions.ServerLogsPath, ClientFunctions.ServerLogsTempPath, true);
-
-            ClientFunctions.ZipLogs(ClientFunctions.LogsTempPath, ClientFunctions.LogsTempPathZip);
-
-            log.Info("Logs successfully created.");
-
-            // Send logs to server
-            this.Send();
-            log.Info("Send logs to the server.");
-
-            // Wait until logs has been sent
-            sendDone.WaitOne();
-
-            log.Info("Logs have been successfully sent to the server.");
-            log.Info("");
-
-            // Delete the temporary logs folder
-            ClientFunctions.DeleteLogFolderAfterSent();
-
-            this.WaitForSignal();
-        }
-
-        private void Send()
-        {
-            byte[] buffer = new byte[BUFFER_SIZE];
-
-            // Send file information to the clients.
-            this.SendFileInfo();
-
-            // Blocking read file and send to the server asynchronously.
-            using (FileStream fs = File.OpenRead(_fileToSend))
-            {
-                var sendBuffer = new byte[5242880];
-                FileInfo fileInfo = new FileInfo(_fileToSend);
-                long fileLen = fileInfo.Length;
-
-                var bytesLeftToTransmit = fileLen;
-
-                while (bytesLeftToTransmit > 0)
-                {
-                    var dataToSend = fs.Read(sendBuffer, 0, sendBuffer.Length);
-                    bytesLeftToTransmit -= dataToSend;
-
-                    //loop until the socket have sent everything in the buffer.
-                    var offset = 0;
-                    while (dataToSend > 0)
-                    {
-                        var bytesSent = _clientSocket.Send(sendBuffer, offset, dataToSend, SocketFlags.None);
-                        dataToSend -= bytesSent;
-                        offset += bytesSent;
-                    }
-                }
-            }
-            sendDone.Set();
-        }
-
-        /// <summary>
-        /// Send log file size information to the server..
-        /// </summary>
-        private void SendFileInfo()
-        {
-            try
-            {
-                if (File.Exists(_fileToSend))
-                {
-                    FileInfo fileInfo = new FileInfo(_fileToSend);
-                    long fileLen = fileInfo.Length;
-
-                    byte[] fileLenByte = BitConverter.GetBytes(fileLen);
-                    Socket handler = _clientSocket;
-                    handler.Send(fileLenByte);
-
-                    log.Info("Send log file size to the server.");
-                }
-                else
-                {
-                    log.Warn("Log zip file doenst exist. Try to create again");
-                    this.CreateLogs();
-                }
-            }
-            catch (Exception ex)
-            {
-                log.Error(ex.Message, ex);
-            }
-        }
-
-        private void SocketConnected(Socket s)
+        private void SocketConnected(Socket clientSocket)
         {
             while (IsSocketConnected)
             {
-                Thread.Sleep(5000);
+                // TODO: Replace this with Sytem.Timers.Timer. Check every 30 minutes
+                Thread.Sleep(10000);
+
+                // This is how you can determine whether a socket is still connected.
+                bool blockingState = clientSocket.Blocking;
 
                 try
                 {
-                    Console.WriteLine("check");
-                    bool part1 = s.Poll(1000, SelectMode.SelectRead);
-                    bool part2 = (s.Available == 0);
+                    try
+                    {
+                        byte[] tmp = new byte[1];
+
+                        clientSocket.Blocking = false;
+                        clientSocket.Send(tmp, 0, 0);
+                        clientSocket.Blocking = blockingState;
+                    }
+                    catch (SocketException e)
+                    {
+                        // 10035 == WSAEWOULDBLOCK
+                        if (e.NativeErrorCode.Equals(10035))
+                        {
+                            //Still Connected, but the Send would block
+                        }
+                        else
+                        {
+                            log.Warn("Socket disconnected. Try reconnect to server: error code" + " " + e.NativeErrorCode);
+                            IsSocketConnected = false;
+                            this.StartConnectToServer();
+                        }
+                    }
                 }
                 catch (ObjectDisposedException)
                 {
-                    log.Warn("Socket disconnected. Try connecting to server");
+                    log.Warn("Socket disconnected. Try reconnect to server");
                     IsSocketConnected = false;
                     this.StartConnectToServer();
+                }
+                finally
+                {
+                    clientSocket.Blocking = blockingState;
                 }
             }
         }
